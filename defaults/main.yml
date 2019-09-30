@@ -1,0 +1,6 @@
+# Default behavior of the configure-host task set to apply configuration 'configure', alternative would be 'remove' meaning it will remove existing configuration
+vault_ssh_host_config_behavior: "configure"
+
+# Default Vault ssh secrets engine public key state set to 'present' meaning it will be added to host's ssh configuration as a trusted key to sign client ssh key pairs with. Alternative would be 'absent' which removes this key from the host
+vault_ssh_host_public_key: "present"
+

@@ -1,0 +1,68 @@
+# Task provisions host machine to trust Vault as certificate authority. This enables clients to connect to this host via ssh with a Vault signed ssh key pair. Also contains logic to remove configuration if necessary set flag passed is set to remove
+# Inputs:
+#     vault_ssh_host_vault_url - (mandatory) holds the URL to the Vault wished to configure the host to trust as a certificate authority
+#     vault_ssh_host_ssh_engine - (mandatory) holds the name of the specific ssh secrets engine to sign sh key pairs within Vault
+#     vault_ssh_host_public_key - default Vault ssh secrets engine public key state set to 'present' meaning it will be added to host's ssh configuration as a trusted key to sign client ssh key pairs with. Alternative would be 'absent' which removes this key from the host
+# Outputs: none
+
+
+- name: Fail on missing mandatory (vault_ssh_host_vault_url) input parameter
+  fail:
+    msg: "Missing mandatory \'vault_ssh_host_vault_url\' input paramters. Holds the URL to the Vault wished to configure the host to trust as a Certificate Authority. Please execute playbook with flag \'--extra-vars vault_ssh_host_vault_url=URL\'"
+  when: vault_ssh_host_vault_url is not defined
+
+- name: Fail on missing mandatory (vault_ssh_host_ssh_engine) input parameter
+  fail:
+    msg: "Missing mandatory \'vault_ssh_host_ssh_engine\' input paramters. Holds the name of the specific SSH secrets engine to sign SSH key pairs within Vault. Please execute playbook with flag \'--extra-vars vault_ssh_host_ssh_engine=ENGINE_NAME\'"
+  when: vault_ssh_host_ssh_engine is not defined
+
+- name: Fail on unsupported Operating System
+  fail:
+    msg: "Unsupported operating system detected on machine. Please consult the documentation for this role to view a list of supported operating systems"
+  when: (ansible_os_family != "RedHat") and (ansible_os_family != "Debian") and (ansible_os_family == "Darwin")
+
+- name: Retrieve Vault ssh secrets engine public key and store in temporary file /tmp/vault-ssh-engine-public-key on host
+  get_url:
+    url: "{{ vault_ssh_host_vault_url }}/v1/{{ vault_ssh_host_ssh_engine }}/public_key"
+    dest: /tmp/vault-ssh-engine-public-key
+    validate_certs: no
+      
+- name: Store public key cached in temporary file /tmp/vault-ssh-engine-public-key on host in ansible variable
+  shell: cat /tmp/vault-ssh-engine-public-key
+  register: vault_ssh_engine_public_key    
+
+- name: Remove temporary public key file /tmp/vault-ssh-engine-public-key from host
+  file:
+    path: /tmp/vault-ssh-engine-public-key
+    state: absent
+
+- name: Touch /etc/ssh/trusted-user-ca-keys.pem file on host
+  file:
+    path: /etc/ssh/trusted-user-ca-keys.pem
+    state: touch
+  become: yes
+
+- name: Add public key to host's ssh configuration file /etc/ssh/trusted-user-ca-keys.pem
+  lineinfile:
+    path: /etc/ssh/trusted-user-ca-keys.pem
+    line: "{{ vault_ssh_engine_public_key.stdout }}"
+    state: "{{ vault_ssh_host_public_key }}"
+  become: yes
+
+- name: Configure the Vault as a trusted certificate authority on host by adding path to /etc/ssh/trusted-user-ca-keys.pem file to /etc/ssh/sshd_config configuration file
+  blockinfile:
+    path: /etc/ssh/sshd_config
+    block: |
+      
+      # Trust retrieved Vault public keys for signing ssh key pairs
+      TrustedUserCAKeys /etc/ssh/trusted-user-ca-keys.pem
+      
+    state: present
+  become: yes
+  
+- name: Restart the SSH service
+  service:
+    name: sshd
+    state: restarted
+  become: yes
+

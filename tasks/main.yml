@@ -1,0 +1,15 @@
+# Synopsis: Configures host machine to trust Hashicorp Vault ssh secrets engine as certificate authority for allowing remote connection with signed ssh key pairs
+# Inputs:
+#     vault_ssh_host_config_behavior - default behavior of the configure-host task set to apply configuration 'configure', alternative would be 'remove' meaning it will remove existing configuration
+# Outputs: none
+
+---
+
+- name: Configure host's trust to Vault as certificate authority
+  include: configure.yml
+  when: vault_ssh_host_config_behavior == "configure"
+ 
+- name: Remove host's configuration trust to Vault as certificate authority
+  include: remove.yml
+  when: vault_ssh_host_config_behavior == "remove"
+

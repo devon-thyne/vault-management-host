@@ -1,0 +1,28 @@
+# Task provisions host machine to trust Vault as certificate authority. This enables clients to connect to this host via ssh with a Vault signed ssh key pair. Also contains logic to remove configuration if necessary set flag passed is set to remove
+# Inputs: none
+# Outputs: none
+
+
+- name: Remove /etc/ssh/trusted-user-ca-keys.pem file from host
+  file:
+    path: /etc/ssh/trusted-user-ca-keys.pem
+    state: absent
+  become: yes
+
+- name: Remove Vault as a trusted certificate authority from host by removing path to /etc/ssh/trusted-user-ca-keys.pem file from /etc/ssh/sshd_config configuration file
+  blockinfile:
+    path: /etc/ssh/sshd_config
+    block: |
+      
+      # Trust retrieved Vault public keys for signing ssh key pairs
+      TrustedUserCAKeys /etc/ssh/trusted-user-ca-keys.pem
+      
+    state: absent
+  become: yes
+ 
+- name: Restart the SSH service
+  service:
+    name: sshd
+    state: restarted
+  become: yes
+
